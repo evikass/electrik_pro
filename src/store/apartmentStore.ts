@@ -22,12 +22,13 @@ export interface InnerWall {
   roomId: string;
 }
 
-export interface SelectedItem {
-  type: 'outerWall' | 'innerWall';
-  roomId?: string;
-  wallSide?: WallSide;
-  wallId?: string;
-}
+// Discriminated union: outerWall ALWAYS has roomId + wallSide, innerWall ALWAYS has wallId
+export type SelectedItem =
+  | { type: 'outerWall'; roomId: string; wallSide: WallSide }
+  | { type: 'innerWall'; wallId: string };
+
+/** Minimum room dimension (metres) */
+const MIN_ROOM_SIZE = 1;
 
 interface ApartmentState {
   rooms: Room[];
@@ -66,19 +67,43 @@ export const useApartmentStore = create<ApartmentState>((set) => ({
       const s = state.step;
       const sdx = dx * s;
       const sdy = dy * s;
-      return {
-        rooms: state.rooms.map((r) => {
-          if (r.id !== roomId) return r;
-          const room = { ...r };
-          switch (wallSide) {
-            case 'north': room.height = Math.max(1, room.height + sdy); break;
-            case 'south': room.y += sdy; room.height = Math.max(1, room.height - sdy); break;
-            case 'east': room.width = Math.max(1, room.width + sdx); break;
-            case 'west': room.x += sdx; room.width = Math.max(1, room.width - sdx); break;
+
+      const updatedRooms = state.rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const room = { ...r };
+
+        switch (wallSide) {
+          case 'north': {
+            const newHeight = room.height + sdy;
+            if (newHeight < MIN_ROOM_SIZE) return room;
+            room.height = newHeight;
+            break;
           }
-          return room;
-        }),
-      };
+          case 'south': {
+            const newHeight = room.height - sdy;
+            if (newHeight < MIN_ROOM_SIZE) return room;
+            room.y += sdy;
+            room.height = newHeight;
+            break;
+          }
+          case 'east': {
+            const newWidth = room.width + sdx;
+            if (newWidth < MIN_ROOM_SIZE) return room;
+            room.width = newWidth;
+            break;
+          }
+          case 'west': {
+            const newWidth = room.width - sdx;
+            if (newWidth < MIN_ROOM_SIZE) return room;
+            room.x += sdx;
+            room.width = newWidth;
+            break;
+          }
+        }
+        return room;
+      });
+
+      return { rooms: updatedRooms };
     }),
 
   moveInnerWall: (wallId, dx, dy) =>
@@ -86,14 +111,63 @@ export const useApartmentStore = create<ApartmentState>((set) => ({
       const s = state.step;
       const sdx = dx * s;
       const sdy = dy * s;
-      return {
-        walls: state.walls.map((w) => {
-          if (w.id !== wallId) return w;
-          const wall = { ...w };
-          if (wall.direction === 'horizontal') wall.y += sdy;
-          else wall.x += sdx;
-          return wall;
-        }),
-      };
+
+      const wall = state.walls.find((w) => w.id === wallId);
+      if (!wall) return state;
+
+      // Update wall position
+      const updatedWalls = state.walls.map((w) => {
+        if (w.id !== wallId) return w;
+        const updated = { ...w };
+        if (updated.direction === 'horizontal') updated.y += sdy;
+        else updated.x += sdx;
+        return updated;
+      });
+
+      const movedWall = updatedWalls.find((w) => w.id === wallId)!;
+
+      // Update adjacent rooms to follow the inner wall movement
+      const updatedRooms = state.rooms.map((room) => {
+        const r = { ...room };
+
+        if (movedWall.direction === 'horizontal') {
+          // Horizontal inner wall: separates rooms above from rooms below
+          // Room whose south wall aligns with this inner wall
+          if (Math.abs(r.y + r.height - wall.y) < 0.01) {
+            // Room is above — adjust height to follow wall
+            r.height = movedWall.y - r.y;
+            if (r.height < MIN_ROOM_SIZE) r.height = MIN_ROOM_SIZE;
+          } else if (Math.abs(r.y - wall.y) < 0.01) {
+            // Room is below — adjust y and height
+            const bottom = r.y + r.height;
+            r.y = movedWall.y;
+            r.height = bottom - movedWall.y;
+            if (r.height < MIN_ROOM_SIZE) {
+              r.height = MIN_ROOM_SIZE;
+              r.y = bottom - MIN_ROOM_SIZE;
+            }
+          }
+        } else {
+          // Vertical inner wall: separates rooms on left from rooms on right
+          if (Math.abs(r.x + r.width - wall.x) < 0.01) {
+            // Room is on the left — adjust width
+            r.width = movedWall.x - r.x;
+            if (r.width < MIN_ROOM_SIZE) r.width = MIN_ROOM_SIZE;
+          } else if (Math.abs(r.x - wall.x) < 0.01) {
+            // Room is on the right — adjust x and width
+            const right = r.x + r.width;
+            r.x = movedWall.x;
+            r.width = right - movedWall.x;
+            if (r.width < MIN_ROOM_SIZE) {
+              r.width = MIN_ROOM_SIZE;
+              r.x = right - MIN_ROOM_SIZE;
+            }
+          }
+        }
+
+        return r;
+      });
+
+      return { walls: updatedWalls, rooms: updatedRooms };
     }),
 }));

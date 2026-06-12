@@ -115,7 +115,7 @@ const MoveGizmo = memo(function MoveGizmo({ selected, rooms, walls, wallHeight, 
     [onMoveInner],
   );
 
-  if (selected.type === 'outerWall' && selected.roomId && selected.wallSide) {
+  if (selected.type === 'outerWall') {
     const room = rooms.find((r) => r.id === selected.roomId);
     if (!room) return null;
     const side = selected.wallSide;
@@ -130,7 +130,7 @@ const MoveGizmo = memo(function MoveGizmo({ selected, rooms, walls, wallHeight, 
     );
   }
 
-  if (selected.type === 'innerWall' && selected.wallId) {
+  if (selected.type === 'innerWall') {
     const wall = walls.find((w) => w.id === selected.wallId);
     if (!wall) return null;
     const ad = innerDirs(wall.direction);
@@ -255,7 +255,7 @@ function SceneContent() {
           room={room}
           wallHeight={wallHeight}
           wallThickness={wallThickness}
-          activeSide={selected?.type === 'outerWall' && selected.roomId === room.id ? (selected.wallSide ?? null) : null}
+          activeSide={selected?.type === 'outerWall' && selected.roomId === room.id ? selected.wallSide : null}
           onSelect={(side) => selOuter(room.id, side)}
         />
       ))}
@@ -290,12 +290,14 @@ function SceneContent() {
 /* ── ApartmentView3D (Canvas wrapper) ───────────────── */
 
 export default function ApartmentView3D() {
+  const selectItem = useApartmentStore((s) => s.selectItem);
+
   return (
     <div className="w-full h-full min-h-[500px]">
       <Canvas
         camera={{ position: [12, 12, 12], fov: 50 }}
         gl={{ antialias: true }}
-        onPointerMissed={() => useApartmentStore.getState().selectItem(null)}
+        onPointerMissed={() => selectItem(null)}
       >
         <SceneContent />
       </Canvas>

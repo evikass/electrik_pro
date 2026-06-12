@@ -56,7 +56,7 @@ function Sidebar() {
         <div className="p-4 border-t border-gray-200 bg-yellow-50">
           <p className="text-sm font-semibold text-yellow-800">Выбрано:</p>
           {selected.type === 'outerWall' && (
-            <p className="text-xs text-yellow-700 mt-1">{rooms.find((r) => r.id === selected.roomId)?.name} — {selected.wallSide ? SIDE_LABEL[selected.wallSide] : ''} стена</p>
+            <p className="text-xs text-yellow-700 mt-1">{rooms.find((r) => r.id === selected.roomId)?.name} — {SIDE_LABEL[selected.wallSide]} стена</p>
           )}
           {selected.type === 'innerWall' && (
             <p className="text-xs text-yellow-700 mt-1">Внутренняя стена {selected.wallId}</p>
